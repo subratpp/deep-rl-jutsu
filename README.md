@@ -1,14 +1,27 @@
 # deep-rl-jutsu
 A Guide to Becoming a Deep Reinforcement Learning Ninja.
 
-PufferLib
+## Research (small scale)
 ClearnRL
+Stablebaselines
+
+PufferLib
 SkRL
 simplefactory
 moolib
+garage
+
+## Research (large scale)
+Acme
 Tianshou
 
-finetune
+## Production and Scalability
+RLLib (needs compute resources)
+
+
+## Finetuning
 carbs
 
-https://github.com/kengz/awesome-deep-rl
+## Resources
+1. https://github.com/kengz/awesome-deep-rl
+2. https://github.com/wwxFromTju/awesome-reinforcement-learning-lib
