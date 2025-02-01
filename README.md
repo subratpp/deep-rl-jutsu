@@ -6,14 +6,12 @@ PufferLib: It provides a wrapper over all environments, which can be seamlessly 
 
 ## Research (small scale)
 1. ClearnRL: Single file implementation of Learning algorithms. Good for small scale research experiments
-
 2. Stablebaselines3: More standard but least modular. Integrating a custom architecture for policy and value functions needs a subclassing the policy
-
 3. **SkRL**: It Came in 2023 and looks promising. 
-
 4. Garage: More modular than SB3, but limited community support and more line of code to setup the training
+5. TorchRL: It was released in 2023. Need to explore more
 
-Need to try out skrl and cleanRL.
+Need to try out torchRL, skrl and cleanRL.
 
 ## Research (large scale)
 1. Acme: Deepmind
