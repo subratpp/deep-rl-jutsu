@@ -1,5 +1,6 @@
-# deep-rl-jutsu
-A Guide to Becoming a Deep Reinforcement Learning Ninja.
+# Deep RL Jutsu
+
+A Guide to Becoming a Deep Reinforcement Learning Ninja. This is a 'Giving Back' repository where RL algorithms are implemented from scratch in a notebook-style tutorial, and learning resources are organized.
 
 ## Environment Wrappers
 PufferLib: It provides a wrapper over all environments, which can be seamlessly integrated with ClearRL or SB3
