@@ -8,6 +8,8 @@ conda activate drl-jutsu
 
 ## Value-Based:
 1. DQN
+2. DDPG
+3. SAC
 
 ## Policy-Based
 1. PPO
@@ -39,7 +41,7 @@ RLLib (needs compute resources)
 1. Optuna
 2. carbs
 3. Ray Tune
-4. torchtune
+4. torchtune (LLM finetuning)
 
 ---
 # Resources
