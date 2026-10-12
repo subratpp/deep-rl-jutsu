@@ -1,0 +1,435 @@
+% !TEX root = ../rl_book.tex
+\chapter{Policy Gradient}
+
+
+
+
+\begin{figure}[h]
+\centering
+\begin{adjustbox}{max width=\linewidth}
+\begin{forest}
+for tree={
+    draw,
+    rounded corners,
+    align=center,
+    inner sep=3pt,
+    s sep=8mm,
+    l sep=8mm,
+    edge={-Stealth},
+    font=\small,
+    anchor=north,
+    minimum width=28mm,
+}
+[RL Algorithms, fill=blue!10
+  [Model-Free
+    [Policy Gradient
+      [Direct
+        [{REINFORCE\\A2C\\A3C}]
+      ]
+      [Surrogate
+        [{PPO\\TRPO}]
+      ]
+    ]
+    [Value-Based
+      [Direct
+        [DQN]
+      ]
+      [Critic-Based
+        [{DDPG\\SAC\\TD3}]
+      ]
+    ]
+  ]
+  [Model-Based
+    [Learning Model
+      [Dreamer]
+    ]
+    [Model Given
+      [AlphaGo]
+    ]
+  ]
+]
+\end{forest}
+\end{adjustbox}
+\caption{Hierarchy of RL algorithms with grouped methods.}
+\end{figure}
+
+
+% === Policy Optimization with REINFORCE ========
+\section{Policy Optimization with \textsc{Reinforce}}
+
+\paragraph{Setup.}
+Let $\pi_\theta(a \mid s)$ be a differentiable stochastic policy with parameters $\theta$.
+For a trajectory $\tau \!=\! (s_0,a_0,\dots,s_T)$, define the (discounted) return
+\[
+R(\tau) \;\;=\;\; \sum_{t=0}^{T-1} \gamma^{t}\, r_t,\qquad \gamma\in[0,1].
+\]
+The performance objective is the expected return
+\[
+J(\theta) \;\;=\;\; \mathbb{E}_{\tau \sim \pi_\theta}\big[\,R(\tau)\,\big].
+\]
+
+\paragraph{Trajectory likelihood and log-derivative trick.}
+Under a fixed environment with initial-state distribution $\rho_0$ and dynamics $P$ (both independent of $\theta$),
+\[
+P(\tau \mid \theta)
+\;=\; \rho_0(s_0)\,\prod_{t=0}^{T-1} P(s_{t+1}\mid s_t,a_t)\,\pi_\theta(a_t\mid s_t),
+\quad
+\log P(\tau \mid \theta)
+\;=\; \text{const} + \sum_{t=0}^{T-1}\log \pi_\theta(a_t\mid s_t).
+\]
+Using $\nabla_\theta P = P \,\nabla_\theta \log P$,
+\begin{align*}
+\nabla_\theta J(\theta)
+&= \nabla_\theta \int P(\tau\mid\theta)\,R(\tau)\,d\tau
+= \int P(\tau\mid\theta)\,\nabla_\theta \log P(\tau\mid\theta)\,R(\tau)\,d\tau \\
+&= \E_{\tau\sim\pi_\theta}\!\left[\,\sum_{t=0}^{T-1} \nabla_\theta \log \pi_\theta(a_t\mid s_t)\; R(\tau)\,\right].
+\end{align*}
+
+\paragraph{Expected Grad-Log-Prob (EGLP) lemma.}
+For any distribution $P_\theta$ with density differentiable in $\theta$,
+\[
+\E_{x\sim P_\theta}\!\big[\nabla_\theta \log P_\theta(x)\big] \;=\; 0.
+\]
+This follows from $\int \nabla_\theta P_\theta(x)\,dx = \nabla_\theta 1 = 0$.
+
+\paragraph{Reward-to-go form (``don’t let the past distract you'').}
+It is preferable to attribute credit to an action only through \emph{subsequent} rewards. Writing
+$\hat R_t \coloneqq \sum_{t'=t}^{T-1} \gamma^{t'-t} r_{t'}$,
+\[
+\nabla_\theta J(\theta)
+\;=\;
+\E_{\tau\sim\pi_\theta}\!\left[\,\sum_{t=0}^{T-1} \nabla_\theta \log \pi_\theta(a_t\mid s_t)\;\hat R_t\,\right],
+\]
+which attains lower variance than using $R(\tau)$, since terms involving past rewards cancel in expectation but add noise.
+
+\paragraph{Baselines and advantages.}
+By EGLP, for any function $b:\mathcal{S}\!\to\!\mathbb{R}$,
+\[
+\E_{a_t\sim \pi_\theta(\cdot\mid s_t)}\!\big[\nabla_\theta \log \pi_\theta(a_t\mid s_t)\, b(s_t)\big] \;=\; 0,
+\]
+so subtracting a baseline does not change the expectation:
+\[
+\nabla_\theta J(\theta)
+\;=\;
+\E_{\tau\sim\pi_\theta}\!\left[\,\sum_{t=0}^{T-1} \nabla_\theta \log \pi_\theta(a_t\mid s_t)\,\big(\hat R_t - b(s_t)\big)\right].
+\]
+The variance-minimizing choice (within state-only baselines) is $b(s_t)=V^{\pi}(s_t)$, yielding the \emph{advantage} $A^{\pi}(s_t,a_t)=Q^{\pi}(s_t,a_t)-V^{\pi}(s_t)$ and the canonical form
+\[
+\nabla_\theta J(\theta)
+\;=\;
+\E_{\tau\sim\pi_\theta}\!\left[\,\sum_{t=0}^{T-1} \nabla_\theta \log \pi_\theta(a_t\mid s_t)\, A^{\pi}(s_t,a_t)\right].
+\]
+In practice, $A^{\pi}$ is estimated from data, e.g., via Monte Carlo $\hat R_t - \hat V(s_t)$ or GAE.
+
+\paragraph{Sample estimator (stochastic gradient).}
+Given a batch $\mathcal{D}$ of trajectories sampled under the current policy, with per-time-step weights $w_t \in \{\hat R_t,\;\hat A_t\}$,
+\[
+\widehat{\nabla_\theta J}(\theta)
+\;=\;
+\frac{1}{|\mathcal{D}|}\sum_{\tau\in\mathcal{D}}\;\sum_{t=0}^{T-1}
+\nabla_\theta \log \pi_\theta(a_t\mid s_t)\; w_t.
+\]
+
+\begin{algorithm}[H]
+\caption{\textsc{Reinforce} with Reward-to-Go and Baseline}
+\label{alg:reinforce}
+\begin{algorithmic}[1]
+\State \textbf{Input:} policy $\pi_\theta$, critic $\hat V_\phi$, horizon $T$, discount $\gamma$, learning rate $\alpha$
+\Repeat
+  \State Collect $N$ trajectories by rolling out $\pi_\theta$; store $(s_t,a_t,r_t)_{t=0}^{T-1}$
+  \For{each trajectory}
+    \State Compute returns-to-go $\hat R_t \gets \sum_{t'=t}^{T-1} \gamma^{\,t'-t} r_{t'}$
+    \State (Optional) Estimate advantages $\hat A_t \gets \hat R_t - \hat V_\phi(s_t)$ (or GAE)
+  \EndFor
+  \State Form policy loss $L(\theta) \gets -\frac{1}{|\mathcal{D}|}\!\sum\limits_{\tau,t} \log \pi_\theta(a_t\mid s_t)\, w_t$
+  \State Update policy: $\theta \leftarrow \theta - \alpha\, \nabla_\theta L(\theta)$
+  \State (Optional) Update critic $\phi$ by regression to targets $\hat R_t$
+\Until{converged}
+\end{algorithmic}
+\end{algorithm}
+
+
+
+\subsection{Generalized Advantage Estimation}
+
+Policy gradient methods rely on the notion of the \emph{advantage function}, defined as
+\begin{equation}
+    A^\pi(s_t,a_t) = Q^\pi(s_t,a_t) - V^\pi(s_t),
+\end{equation}
+which measures how much better (or worse) an action $a_t$ is compared to the average behavior at state $s_t$.
+
+\subsection{From Advantage to Temporal-Difference Errors}
+Using the Bellman equation for $Q^\pi$, we have
+\begin{equation}
+    Q^\pi(s_t,a_t) = \mathbb{E}\big[r_t + \gamma V^\pi(s_{t+1}) \mid s_t, a_t\big].
+\end{equation}
+Substituting into the definition of the advantage,
+\begin{equation}
+    A^\pi(s_t,a_t) = \mathbb{E}\big[r_t + \gamma V^\pi(s_{t+1}) - V^\pi(s_t) \mid s_t,a_t\big].
+\end{equation}
+We define the \emph{temporal-difference (TD) error} at time $t$ as
+\begin{equation}
+    \delta_t = r_t + \gamma V^\pi(s_{t+1}) - V^\pi(s_t).
+\end{equation}
+Thus, the advantage can be written simply as the expected TD error:
+\begin{equation}
+    A^\pi(s_t,a_t) = \mathbb{E}[\delta_t \mid s_t,a_t].
+\end{equation}
+
+\subsection{Multi-step Advantage Estimators}
+Instead of relying only on the $1$-step TD error, one can consider a $k$-step return. Summing discounted TD errors yields
+\begin{equation}
+    \sum_{i=0}^{k-1} \gamma^i \delta_{t+i} 
+    = \Big( r_t + \gamma r_{t+1} + \cdots + \gamma^{k-1} r_{t+k-1} + \gamma^k V(s_{t+k}) \Big) - V(s_t).
+\end{equation}
+The telescoping structure shows that the $k$-step estimator corresponds to the $k$-step bootstrapped return minus the value baseline.
+
+\subsection{Generalized Advantage Estimation}
+Generalized Advantage Estimation (GAE) \cite{schulman2015high} combines all $k$-step estimators into a single exponentially-weighted average:
+\begin{equation}
+    \hat{A}_t^{\text{GAE}(\gamma,\lambda)} = (1-\lambda)\sum_{k=1}^\infty \lambda^{k-1}
+    \left( \sum_{i=0}^{k-1} \gamma^i \delta_{t+i} \right).
+\end{equation}
+Rearranging terms yields the compact recursive form
+\begin{equation}
+    \hat{A}_t^{\text{GAE}(\gamma,\lambda)} = \delta_t + \gamma\lambda \delta_{t+1} + (\gamma\lambda)^2 \delta_{t+2} + \cdots.
+\end{equation}
+In practice, this is implemented efficiently by the backward recursion
+\begin{equation}
+    \hat{A}_t = \delta_t + \gamma\lambda \hat{A}_{t+1},
+\end{equation}
+with $\hat{A}_T = 0$ at the end of a trajectory.
+
+\subsection{Bias--Variance Tradeoff}
+The parameter $\lambda \in [0,1]$ interpolates between high-bias, low-variance and low-bias, high-variance estimators:
+\begin{itemize}
+    \item $\lambda=0$: Uses only the $1$-step TD error ($\hat{A}_t=\delta_t$), yielding low variance but higher bias.
+    \item $\lambda=1$: Recovers the Monte Carlo return ($\hat{A}_t=R_t - V(s_t)$), yielding low bias but higher variance.
+    \item $0 < \lambda < 1$: Provides a balance between variance reduction and bias control, which is crucial for stable policy gradient methods such as PPO and TRPO.
+\end{itemize}
+
+
+\section{Reinforce Extensions}
+
+Algorithms like A2c and A3c
+
+\section{Surrogate Objective}
+it covers natural pg, trpo and ppo
+
+\subsection{Surrogate Objective, Natural Gradient, and TRPO}
+
+\paragraph{True objective.}
+Let $J(\pi)$ denote the (discounted) expected return of a policy $\pi$:
+\[
+J(\pi) \;=\; \mathbb{E}_{\tau \sim \pi}\!\left[ \sum_{t=0}^{\infty} \gamma^t r(s_t,a_t) \right],
+\quad
+d^{\pi}(s) \;=\; (1-\gamma)\sum_{t=0}^{\infty} \gamma^t \Pr(s_t=s \mid \pi)
+\]
+where $d^{\pi}$ is the discounted state-visitation distribution.
+
+\paragraph{Performance difference and the role of advantages.}
+For any two policies $\pi$ and $\pi_{\text{old}}$, the performance difference lemma gives
+\begin{equation}
+\label{eq:pdl}
+J(\pi)
+\;=\;
+J(\pi_{\text{old}})
+\;+\;
+\frac{1}{1-\gamma}\;
+\mathbb{E}_{s \sim d^{\pi},\, a \sim \pi(\cdot|s)}
+\!\big[\, A^{\pi_{\text{old}}}(s,a) \,\big],
+\end{equation}
+where $A^{\pi_{\text{old}}}(s,a) = Q^{\pi_{\text{old}}}(s,a)-V^{\pi_{\text{old}}}(s)$ is the advantage under $\pi_{\text{old}}$.
+Eq.~\eqref{eq:pdl} is exact, but involves the \emph{unknown} distribution $d^{\pi}$ induced by the \emph{new} policy.
+
+
+
+
+\paragraph{From $J$ to a surrogate $L$: switching distributions.}
+We would like to evaluate/improve $\pi$ using samples from $\pi_{\text{old}}$.
+There are two distributions in \eqref{eq:pdl}:
+(i) actions $a \sim \pi(\cdot|s)$ and (ii) states $s \sim d^{\pi}$.
+
+\emph{Action distribution.}
+For the inner expectation we use a likelihood-ratio identity:
+\[
+\mathbb{E}_{a \sim \pi(\cdot|s)}[f(s,a)]
+\;=\;
+\mathbb{E}_{a \sim \pi_{\text{old}}(\cdot|s)}
+\!\left[ \frac{\pi(a|s)}{\pi_{\text{old}}(a|s)}\, f(s,a) \right].
+\]
+
+\emph{State distribution.}
+Replacing $d^{\pi}$ by $d^{\pi_{\text{old}}}$ yields a tractable, \emph{local} approximation.
+This replacement is what makes the objective a \emph{surrogate}: at $\pi=\pi_{\text{old}}$ it matches $J$
+to first order (i.e., it has the same gradient), while being computable from data gathered under $\pi_{\text{old}}$.
+
+Putting the two pieces together, the standard surrogate objective around $\pi_{\text{old}}$ is
+\begin{align}
+\label{eq:surrogate}
+L_{\pi_{\text{old}}}(\pi)
+&:= J(\pi_{\text{old}})
+\;+\;
+\frac{1}{1-\gamma}\,
+\mathbb{E}_{\substack{s \sim d^{\pi_{\text{old}}}\\ a \sim \pi_{\text{old}}(\cdot|s)}}
+\!\left[\, r_{\pi/\pi_{\text{old}}}(s,a)\, A^{\pi_{\text{old}}}(s,a) \,\right],
+\\[-2mm]
+&\text{with}\quad
+r_{\pi/\pi_{\text{old}}}(s,a) := \frac{\pi(a|s)}{\pi_{\text{old}}(a|s)}.
+\nonumber
+\end{align}
+(One often drops the constant $J(\pi_{\text{old}})$ when optimizing, since it does not depend on $\pi$.)
+
+
+\paragraph{First-order approximation of the surrogate.}
+Recall the surrogate objective around $\pi_{\text{old}}$:
+\[
+L_{\pi_{\text{old}}}(\pi_\theta) 
+= J(\pi_{\text{old}})
++ \frac{1}{1-\gamma}\,
+\mathbb{E}_{s \sim d^{\pi_{\text{old}}},\, a \sim \pi_\theta(\cdot|s)}
+\!\left[ A^{\pi_{\text{old}}}(s,a) \right].
+\]
+
+Let $\theta_{\text{old}}$ be the parameters of the current policy and
+$\Delta\theta = \theta - \theta_{\text{old}}$ the update.
+Performing a first-order Taylor expansion around $\theta_{\text{old}}$ gives
+\[
+L_{\pi_{\text{old}}}(\pi_\theta)
+\;\approx\;
+L_{\pi_{\text{old}}}(\pi_{\theta_{\text{old}}})
++ g^\top \Delta\theta,
+\]
+where
+\[
+g \;=\; \nabla_\theta L_{\pi_{\text{old}}}(\pi_\theta)\big|_{\theta=\theta_{\text{old}}}
+= \mathbb{E}_{s,a \sim \pi_{\text{old}}}
+\!\left[ \nabla_\theta \log \pi_\theta(a|s)\, A^{\pi_{\text{old}}}(s,a) \right].
+\]
+
+Thus, to first order, maximizing $L$ reduces to taking a step in the
+policy gradient direction. This shows that the surrogate objective
+recovers the REINFORCE gradient at $\pi = \pi_{\text{old}}$, while also
+providing a local approximation of $J(\pi)$ that can be combined with
+additional constraints such as a KL trust region.
+
+
+
+\paragraph{Why it is a surrogate (first-order accuracy).}
+Let $\pi_\theta$ be a differentiable policy, $\theta_{\text{old}}$ the current parameters, and $\Delta\theta=\theta-\theta_{\text{old}}$.
+Linearizing $L_{\pi_{\text{old}}}$ at $\theta_{\text{old}}$ gives
+\[
+L_{\pi_{\text{old}}}(\pi_\theta) \approx L_{\pi_{\text{old}}}(\pi_{\theta_{\text{old}}})
+\;+\; g^\top \Delta\theta,
+\qquad
+g \;=\; \nabla_\theta L_{\pi_{\text{old}}}(\pi_\theta)\big|_{\theta=\theta_{\text{old}}}
+= \mathbb{E}_{s,a \sim \pi_{\text{old}}}
+\!\left[ \nabla_\theta \log \pi_\theta(a|s)\, A^{\pi_{\text{old}}}(s,a) \right],
+\]
+which equals the true policy gradient $\nabla_\theta J(\pi_\theta)\!\mid_{\theta=\theta_{\text{old}}}$.
+Thus $L$ matches $J$ up to first order at $\theta_{\text{old}}$.
+
+\paragraph{Natural gradient via a local KL constraint.}
+To control the size of the update, constrain the average KL divergence from the old policy:
+\[
+\bar{D}_{\mathrm{KL}}(\theta_{\text{old}},\theta)
+\;:=\;
+\mathbb{E}_{s \sim d^{\pi_{\text{old}}}}\!\left[
+D_{\mathrm{KL}}\!\big(\pi_{\theta_{\text{old}}}(\cdot|s)\,\|\,\pi_{\theta}(\cdot|s)\big)
+\right]
+\;\le\; \delta.
+\]
+Approximating the objective to first order and the KL to second order around $\theta_{\text{old}}$ yields
+\[
+\max_{\Delta\theta}\; g^\top \Delta\theta
+\quad \text{s.t.} \quad
+\tfrac{1}{2}\,\Delta\theta^\top F\,\Delta\theta \;\le\; \delta,
+\qquad
+F \;=\; \mathbb{E}_{s,a \sim \pi_{\text{old}}}
+\!\big[ \nabla \log \pi_{\theta}(a|s)\, \nabla \log \pi_{\theta}(a|s)^\top \big]_{\theta=\theta_{\text{old}}}.
+\]
+The solution is the \emph{natural policy gradient} step
+\[
+\Delta\theta^\star
+\;=\;
+\sqrt{\frac{2\delta}{g^\top F^{-1} g}}\, F^{-1} g,
+\]
+which rescales the vanilla gradient by the Fisher information, producing updates that are invariant to reparameterization.
+
+\paragraph{TRPO from the surrogate.}
+Trust Region Policy Optimization (TRPO) replaces the linearized objective with the full surrogate \eqref{eq:surrogate}
+and enforces the KL constraint directly:
+\begin{equation}
+\label{eq:trpo}
+\max_{\theta}\;\;
+\mathbb{E}_{s,a \sim \pi_{\text{old}}}
+\!\left[ r_\theta(s,a)\, A^{\pi_{\text{old}}}(s,a) \right]
+\quad \text{s.t.} \quad
+\mathbb{E}_{s \sim d^{\pi_{\text{old}}}}
+\!\left[ D_{\mathrm{KL}}\big(\pi_{\text{old}}(\cdot|s)\,\|\,\pi_\theta(\cdot|s)\big) \right] \;\le\; \delta,
+\end{equation}
+where $r_\theta(s,a)=\pi_\theta(a|s)/\pi_{\text{old}}(a|s)$.
+TRPO approximately solves \eqref{eq:trpo} by computing the natural gradient direction $F^{-1}g$
+(via conjugate gradients) and performing a backtracking line search that ensures the empirical KL stays within the trust region
+and that the surrogate improves, yielding stable monotonic progress under mild assumptions.
+
+\paragraph{Where the distribution switch occurs.}
+The surrogate construction makes two explicit substitutions relative to the true objective:
+(i) it \emph{replaces} $d^{\pi}$ by $d^{\pi_{\text{old}}}$ (state distribution switch), and
+(ii) it \emph{reweights} the action expectation using the likelihood ratio $r_{\pi/\pi_{\text{old}}}$ (action distribution switch).
+These steps allow us to estimate the objective and its gradient from trajectories sampled under $\pi_{\text{old}}$, while the KL trust region controls the discrepancy induced by the state-distribution replacement.
+
+
+
+
+
+\subsection{Proximal Policy Optimization (PPO)}
+
+Proximal Policy Optimization (PPO) \cite{schulman2017proximal} is an on-policy actor--critic algorithm
+designed to improve the stability of policy gradient methods. 
+It alternates between (i) collecting trajectories from the current policy and (ii) optimizing a surrogate objective 
+over several epochs of minibatch stochastic gradient ascent.
+
+\paragraph{Key ideas.}
+\begin{itemize}
+    \item The policy $\pi_\theta(a|s)$ (actor) and value function $V_\phi(s)$ (critic) are parameterized by neural networks.
+    \item Trajectories of length $T$ are collected, and returns $R_t$ and advantages $A_t$ are computed.
+    \item The surrogate objective penalizes large deviations from the old policy via a clipped importance ratio:
+    \[
+        L^{\text{CLIP}}(\theta) = \mathbb{E}_t\!\left[
+            \min\Big(r_t(\theta) A_t,\;
+            \mathrm{clip}\!\left(r_t(\theta), 1-\epsilon, 1+\epsilon\right) A_t
+            \Big)
+        \right],
+    \]
+    where $r_t(\theta) = \tfrac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}$.
+    \item The critic is updated by minimizing a squared-error loss 
+    $\;L^{\text{VF}}(\phi) = \mathbb{E}_t\!\left[(V_\phi(s_t) - R_t)^2\right]$.
+    \item Advantages $A_t$ are estimated using Generalized Advantage Estimation (GAE):
+    \[
+        A_t = \sum_{l=0}^\infty (\gamma \lambda)^l \delta_{t+l},
+        \quad 
+        \delta_t = r_t + \gamma V(s_{t+1}) - V(s_t).
+    \]
+\end{itemize}
+
+\paragraph{Pseudocode.}
+
+\begin{algorithm}[H]
+\caption{Proximal Policy Optimization (PPO, clipped variant)}
+\begin{algorithmic}
+\State Initialize policy parameters $\theta$, value parameters $\phi$
+\For{iteration $=1,2,\dots$}
+    \State Collect trajectories $\{(s_t,a_t,r_t)\}_{t=0}^{T-1}$ using $\pi_\theta$
+    \State Compute returns $R_t$ and advantages $A_t$ (e.g., with GAE)
+    \State Store log-probabilities $\log \pi_\theta(a_t|s_t)$ as baseline
+    \For{epoch $=1,\dots,K$}
+        \State Sample minibatch of transitions
+        \State Compute probability ratio $r_t(\theta) \gets \tfrac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}$
+        \State Compute clipped policy loss $L^{\text{CLIP}}(\theta)$
+        \State Update policy by ascending $\nabla_\theta L^{\text{CLIP}}(\theta)$
+        \State Update value function by descending $\nabla_\phi L^{\text{VF}}(\phi)$
+    \EndFor
+\EndFor
+\end{algorithmic}
+\end{algorithm}

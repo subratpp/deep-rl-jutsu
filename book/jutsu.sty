@@ -1,0 +1,166 @@
+% jutsu.sty -- book style for "Deep Reinforcement Learning: From Zero to Hero"
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{jutsu}[2026/10/13 Deep RL Jutsu book style]
+
+% ---------------------------------------------------------------------------
+% Fonts and encoding
+% ---------------------------------------------------------------------------
+\RequirePackage[T1]{fontenc}
+\RequirePackage[english]{babel}
+\RequirePackage{newpxtext}               % Palatino-like text
+\RequirePackage{amsmath,amssymb,mathtools,amsthm}
+\RequirePackage[vvarbb]{newpxmath}       % matching math
+\RequirePackage[scaled=0.85]{beramono}   % monospace for code
+\RequirePackage{microtype}
+
+% ---------------------------------------------------------------------------
+% Page layout
+% ---------------------------------------------------------------------------
+\RequirePackage[a4paper, inner=28mm, outer=24mm, top=30mm, bottom=30mm,
+                headheight=14pt, headsep=10mm, footskip=12mm]{geometry}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6\baselineskip plus 2pt minus 1pt}
+\RequirePackage{emptypage}               % blank pages before a chapter stay blank
+\RequirePackage[shortlabels]{enumitem}
+\setlist{itemsep=2pt, topsep=4pt}
+
+% ---------------------------------------------------------------------------
+% Colours
+% ---------------------------------------------------------------------------
+\RequirePackage{xcolor}
+\definecolor{jutsu}{HTML}{1F4E79}        % deep blue accent
+\definecolor{jutsulight}{HTML}{EAF1F8}
+\definecolor{jutsugray}{HTML}{6B7280}
+
+% ---------------------------------------------------------------------------
+% Chapter and section headings
+% ---------------------------------------------------------------------------
+\RequirePackage{titlesec}
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\color{jutsu}}
+  {\filleft\fontsize{60}{60}\selectfont\thechapter}
+  {1ex}
+  {\titlerule[1pt]\vspace{2ex}\filright\Huge}
+  [\vspace{1ex}]
+\titleformat{name=\chapter, numberless}[display]
+  {\normalfont\bfseries\color{jutsu}}
+  {}
+  {0pt}
+  {\titlerule[1pt]\vspace{2ex}\filright\Huge}
+  [\vspace{1ex}]
+\titlespacing*{\chapter}{0pt}{20pt}{30pt}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{jutsu}}{\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries}{\thesubsubsection}{1em}{}
+\titleformat{\paragraph}[runin]
+  {\normalfont\normalsize\bfseries}{\theparagraph}{1em}{}
+\titlespacing*{\paragraph}{0pt}{1.5ex plus .5ex}{1em}
+
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{1}
+
+% ---------------------------------------------------------------------------
+% Running headers: page | chapter (left), section | page (right)
+% ---------------------------------------------------------------------------
+\RequirePackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{}}
+\renewcommand{\sectionmark}[1]{\markright{\thesection\quad #1}}
+\fancyhead[LE]{\small\thepage\qquad\scshape\nouppercase{\leftmark}}
+\fancyhead[RO]{\small\scshape\nouppercase{\rightmark}\qquad\thepage}
+\fancypagestyle{plain}{\fancyhf{}\renewcommand{\headrulewidth}{0pt}%
+  \fancyfoot[C]{\small\thepage}}
+
+% ---------------------------------------------------------------------------
+% Figures, tables, algorithms, code
+% ---------------------------------------------------------------------------
+\RequirePackage{graphicx}
+\RequirePackage{float}
+\RequirePackage{booktabs}
+\RequirePackage{subcaption}
+\RequirePackage[font=small, labelfont={bf,color=jutsu}]{caption}
+\RequirePackage[export]{adjustbox}
+\RequirePackage{tikz}
+\usetikzlibrary{arrows.meta,calc,positioning}
+\RequirePackage[edges]{forest}
+\RequirePackage[chapter]{algorithm}
+\RequirePackage{algpseudocode}
+\RequirePackage{listings}
+\lstset{basicstyle=\ttfamily\small, columns=fullflexible, keepspaces=true,
+        frame=leftline, rulecolor=\color{jutsu}, framerule=1.5pt,
+        xleftmargin=1em, keywordstyle=\color{jutsu}\bfseries,
+        commentstyle=\color{jutsugray}\itshape, breaklines=true}
+
+% ---------------------------------------------------------------------------
+% Theorem-like environments (numbered per chapter, shared counter)
+% ---------------------------------------------------------------------------
+\theoremstyle{definition}
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem*{remark}{Remark}
+
+\RequirePackage[most]{tcolorbox}
+\tcbset{jutsubox/.style={enhanced, breakable, frame hidden, boxrule=0pt,
+        sharp corners, borderline west={2.5pt}{0pt}{jutsu},
+        colback=jutsulight, left=8pt, right=8pt, top=4pt, bottom=4pt,
+        before skip=8pt, after skip=8pt}}
+\tcolorboxenvironment{theorem}{jutsubox}
+\tcolorboxenvironment{lemma}{jutsubox}
+\tcolorboxenvironment{proposition}{jutsubox}
+\tcolorboxenvironment{corollary}{jutsubox}
+\tcolorboxenvironment{definition}{jutsubox}
+\tcolorboxenvironment{example}{jutsubox, colback=white, borderline west={2.5pt}{0pt}{jutsugray}}
+
+% ---------------------------------------------------------------------------
+% Bibliography and cross-references
+% ---------------------------------------------------------------------------
+\RequirePackage[numbers, sort&compress]{natbib}
+\RequirePackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=jutsu, citecolor=jutsu, urlcolor=jutsu,
+            bookmarksnumbered=true, bookmarksopen=true, pdfstartview=FitH}
+\RequirePackage{bookmark}
+\RequirePackage[capitalise, noabbrev]{cleveref}
+
+% ---------------------------------------------------------------------------
+% Notation
+% ---------------------------------------------------------------------------
+\newcommand{\E}{\mathbb{E}}
+
+% ---------------------------------------------------------------------------
+% Title page: set \booktitle, \booksubtitle, \bookauthor, \bookaffiliation
+% ---------------------------------------------------------------------------
+\newcommand{\booktitle}{}
+\newcommand{\booksubtitle}{}
+\newcommand{\bookauthor}{}
+\newcommand{\bookaffiliation}{}
+\newcommand{\makebooktitle}{%
+  \begin{titlepage}
+    \newgeometry{margin=25mm}
+    \color{jutsu}\raggedright
+    \vspace*{0.22\textheight}
+    {\fontsize{36}{42}\selectfont\bfseries\booktitle\par}
+    \vspace{3mm}
+    {\color{jutsu}\rule{\linewidth}{1.5pt}\par}
+    \vspace{4mm}
+    {\LARGE\color{jutsugray}\booksubtitle\par}
+    \vfill
+    {\Large\color{black}\bookauthor\par}
+    \vspace{2mm}
+    {\large\color{jutsugray}\bookaffiliation\par}
+    \vspace{2mm}
+    {\large\color{jutsugray}\today\par}
+  \end{titlepage}
+  \restoregeometry
+  \cleardoublepage}
+
+\endinput

@@ -1,0 +1,21 @@
+{
+  // LaTeX Workshop: rebuild the book on every save of any book/*.tex or .bib file.
+  // Compilation is driven by book/.latexmkrc, which writes rl_book.pdf to the repo root.
+  "latex-workshop.latex.autoBuild.run": "onSave",
+  "latex-workshop.latex.rootFile.doNotPrompt": true,
+  "latex-workshop.latex.outDir": "%DIR%/..",
+  "latex-workshop.latex.recipes": [
+    { "name": "latexmk (book/.latexmkrc)", "tools": ["latexmk-rc"] }
+  ],
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk-rc",
+      "command": "latexmk",
+      "args": ["-cd", "-r", "%DIR%/.latexmkrc", "%DOC_EXT%"],
+      "env": {}
+    }
+  ],
+  "latex-workshop.latex.clean.subfolder.enabled": true,
+  "latex-workshop.view.pdf.viewer": "tab",
+  "latex-workshop.synctex.afterBuild.enabled": true
+}

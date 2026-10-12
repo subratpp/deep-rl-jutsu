@@ -1,0 +1,172 @@
+% !TEX root = ../rl_book.tex
+\chapter{Reinforcement Learning Fine-Tuning of Language Models}
+\label{chap:rlft}
+
+Notes in this chapter are inspired by the excellent \href{https://youtu.be/BqZC7mDSbIg?feature=shared}{UC Berkeley RL lectures}, which provide a solid foundation for understanding reinforcement learning concepts. We extend these ideas to the modern setting of aligning large language models (LLMs).
+
+\section{Introduction}
+Reinforcement Learning Fine-Tuning (RLFT) has emerged as a central paradigm for aligning large language models (LLMs) with human preferences. Unlike classical supervised fine-tuning, RLFT explicitly incorporates feedback (human or automated) to guide the model toward desirable behaviors.  
+
+The three major RLFT approaches are:
+\begin{itemize}
+    \item Reinforcement Learning from Human Feedback (RLHF, typically implemented with PPO),
+    \item Direct Preference Optimization (DPO),
+    \item Group Relative Policy Optimization (GRPO).
+\end{itemize}
+
+Each method differs in how it incorporates preference information, but they share a common principle: moving the model distribution closer to human-preferred behaviors while avoiding divergence from the reference distribution.
+
+The overall training pipeline can be summarized as follows:
+\begin{enumerate}
+    \item \textbf{Pre-training:} Train the LLM on internet-scale corpora with next-token prediction.
+    \item \textbf{Supervised Fine-Tuning (SFT):} Use human-annotated demonstrations to fine-tune the model. However, labeled data is limited, and imitation alone is insufficient for robust generalization.
+    \item \textbf{Reinforcement Learning Fine-Tuning:} Collect preference data by sampling multiple completions for a given prompt and asking a judge (human or automated) to indicate preferred outputs. This preference data is then used to fine-tune the model, either via a reward model (RLHF) or directly (DPO, GRPO).
+\end{enumerate}
+
+\section{Reinforcement Learning from Human Feedback (RLHF)}
+
+\subsection{Problem Setup}
+Let $x$ denote a prompt with tokens $\{x_1, x_2, \ldots, x_t\}$, and let $y = (y_1, \ldots, y_T)$ be a completion sampled from the autoregressive policy $\pi_\theta$:
+\[
+\pi_\theta(y \mid x) = \prod_{t=1}^T \pi_\theta(y_t \mid x, y_{<t}).
+\]
+A reward model $r_\phi(x,y)$ is trained from preference data to assign scalar values, indicating the quality of responses.
+
+The optimization goal is to adapt $\pi_\theta$ such that higher-reward completions become more likely.
+
+\subsection{Contextual Bandit View}
+The RLHF setting can be modeled as a one-step episodic MDP (contextual bandit):
+\begin{itemize}
+    \item \textbf{State:} The prompt $x$,
+    \item \textbf{Action:} A completion $y$,
+    \item \textbf{Reward:} $R = r_\phi(x,y)$,
+    \item \textbf{Termination:} The episode ends after one completion.
+\end{itemize}
+Thus, the complexity of multi-step environments is absent; however, token-wise gradients are still computed for optimization.
+
+\subsection{Training a Reward Model}
+Preference datasets consist of tuples $(x,y_h,y_l)$, where $y_h \succ y_l$ denotes that humans (or an automated judge) prefer $y_h$ over $y_l$.  
+
+The Bradley–Terry model defines:
+\[
+P(y_h \succ y_l \mid x) = \sigma\!\left( r_\phi(x,y_h) - r_\phi(x,y_l) \right), 
+\quad \sigma(z) = \frac{1}{1+e^{-z}}.
+\]
+
+The reward model is trained by minimizing:
+\[
+\mathcal{L}(\phi) = - \mathbb{E}_{(x,y_h,y_l)} \log \sigma\!\left( r_\phi(x,y_h) - r_\phi(x,y_l) \right).
+\]
+
+In practice, $r_\phi$ is implemented as a small neural head on top of an SFT model.
+
+\subsection{Policy Optimization with KL Regularization}
+The RLHF policy objective balances reward maximization with proximity to a reference model $\pi_{\text{ref}}$:
+\[
+\max_{\pi_\theta} \; \mathbb{E}_{x \sim \mathcal{D}, \, y \sim \pi_\theta} \Big[ r_\phi(x,y) \Big] 
+- \beta \, D_{\text{KL}}\!\big( \pi_\theta(y \mid x) \,\|\, \pi_{\text{ref}}(y \mid x) \big).
+\]
+
+The KL penalty prevents reward hacking and catastrophic drift away from the supervised initialization.
+
+Token-wise REINFORCE gradients take the form:
+\[
+\nabla_\theta J(\theta) = \mathbb{E}_{x,y \sim \pi_\theta}\!\left[ r(x,y) \sum_{t=1}^T \nabla_\theta \log \pi_\theta(y_t \mid x,y_{<t}) \right].
+\]
+
+\subsection{PPO Implementation}
+In practice, RLHF is trained with Proximal Policy Optimization (PPO). Given importance ratio
+\[
+\rho_t(\theta) = \frac{\pi_\theta(y_t \mid s_t)}{\pi_{\text{old}}(y_t \mid s_t)},
+\]
+the clipped PPO loss is:
+\[
+L_{\text{PPO}}(\theta) = \mathbb{E}_t \left[ \min\!\left( \rho_t(\theta)\hat A_t,\;\text{clip}(\rho_t(\theta), 1-\epsilon, 1+\epsilon)\hat A_t \right)\right].
+\]
+
+KL regularization is added explicitly:
+\[
+\mathcal{L}(\theta) = - L_{\text{PPO}}(\theta) + \beta \, \widehat{\mathrm{KL}}.
+\]
+
+\subsection{Challenges}
+\begin{itemize}
+    \item High implementation complexity,
+    \item Resource intensity (reward model, value function, PPO training),
+    \item Training instability and sensitivity to hyperparameters.
+\end{itemize}
+
+\section{Direct Preference Optimization (DPO)}
+
+\subsection{Motivation}
+DPO bypasses the need for an explicit reward model by exploiting the duality between rewards and optimal policies in maximum entropy RL.
+
+\subsection{Derivation}
+From preference pairs $(x,y_w,y_l)$ with $y_w \succ y_l$, the Bradley–Terry model gives:
+\[
+P(y_w \succ y_l \mid x) = \sigma\!\Big(\tfrac{1}{\beta}(r(x,y_w)-r(x,y_l))\Big).
+\]
+
+Maximum entropy RL implies:
+\[
+\pi^*(y \mid x) \propto \pi_0(y \mid x) \exp\!\Big(\tfrac{1}{\beta} r(x,y)\Big).
+\]
+
+Rearranging yields the DPO loss:
+\[
+\mathcal{L}_{\text{DPO}}(\theta) = - \mathbb{E}_{(x,y_w,y_l)} \log \sigma\!\Big(\beta\big[
+\log \tfrac{\pi_\theta(y_w \mid x)}{\pi_0(y_w \mid x)} 
+- \log \tfrac{\pi_\theta(y_l \mid x)}{\pi_0(y_l \mid x)} \big]\Big).
+\]
+
+\subsection{Interpretation}
+\begin{itemize}
+    \item DPO resembles supervised logistic regression on preference pairs.
+    \item No rollouts, reward models, or critics are required.
+    \item It is theoretically equivalent to RLHF under reward–policy duality.
+\end{itemize}
+
+\subsection{Limitations}
+A major weakness of DPO is \emph{gradient cancellation} when preferred and dispreferred outputs share prefixes. In such cases, stylistic tokens (e.g., ``TL;DR:'') may not be reinforced, since DPO optimizes only on differences.
+
+\section{Group Relative Policy Optimization (GRPO)}
+
+\subsection{Motivation}
+GRPO preserves PPO’s reinforcement learning structure but avoids training a critic by normalizing rewards within sampled groups.
+
+\subsection{Group Relative Advantage}
+Given $G$ completions $\{y_i\}$ for prompt $x$ with rewards $\{r_i\}$, compute normalized rewards:
+\[
+\tilde r_i = \frac{r_i - \mu}{\sigma}, \quad 
+\mu = \frac{1}{G}\sum_{j=1}^G r_j, \quad 
+\sigma = \sqrt{\tfrac{1}{G}\sum_{j=1}^G (r_j-\mu)^2}.
+\]
+
+Assign per-token advantages:
+\[
+\hat A_{i,t} = \tilde r_i \qquad \forall t \in y_i.
+\]
+
+\subsection{Objective}
+The PPO-style GRPO objective is:
+\[
+J_{\text{GRPO}}(\theta) =
+\mathbb{E}\Big[\min(\rho_{i,t}\hat A_{i,t},\;\text{clip}(\rho_{i,t},1-\epsilon,1+\epsilon)\hat A_{i,t})\Big]
+- \beta\,D_{\mathrm{KL}}(\pi_\theta \,\|\, \pi_{\text{ref}}).
+\]
+
+\subsection{Clarifications}
+\begin{itemize}
+    \item No critic network is required; group mean acts as baseline.
+    \item Variance reduction comes naturally from group normalization.
+    \item GRPO maintains online RL capability, unlike DPO.
+\end{itemize}
+
+\section{Summary}
+\begin{itemize}
+    \item \textbf{RLHF:} Heavyweight RL method with reward models and critics; stable but resource intensive.
+    \item \textbf{DPO:} Lightweight supervised-style approach; efficient but suffers from gradient cancellation.
+    \item \textbf{GRPO:} Middle ground; keeps PPO mechanics but eliminates the critic via group normalization.
+\end{itemize}
+
+All three approaches exemplify different points in the trade-off between theoretical grounding, practical efficiency, and training complexity. Understanding their connections clarifies how reinforcement learning principles adapt to the alignment of modern language models.

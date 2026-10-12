@@ -1,0 +1,111 @@
+% !TEX root = ../rl_book.tex
+\chapter{Value-Based Methods}
+
+\section*{Value Iteration and Its Connection to Q-Learning}
+
+A fundamental dynamic programming method in reinforcement learning is
+\emph{value iteration}, which computes the optimal value function $V^*(s)$
+through repeated application of the Bellman optimality operator:
+\[
+V_{k+1}(s) = \max_a \Big[ R(s,a) + \gamma \, \mathbb{E}_{s'\sim P(\cdot|s,a)} 
+               \big[ V_k(s') \big] \Big].
+\]
+By iteratively updating all states until convergence, value iteration recovers
+$V^*$, and the corresponding optimal policy is obtained by choosing actions
+that maximize the one-step lookahead.
+
+Equivalently, one can update action-values via
+\[
+Q_{k+1}(s,a) = R(s,a) + \gamma \, \mathbb{E}_{s'\sim P(\cdot|s,a)} 
+               \big[ \max_{a'} Q_k(s',a') \big],
+\]
+which directly yields $Q^*(s,a)$ without explicitly maintaining $V$.
+This update requires knowledge of the transition dynamics $P(s'|s,a)$ and
+reward function $R(s,a)$, and is thus a \emph{model-based} procedure.
+
+\medskip
+\noindent
+\textbf{Connection to Q-Learning.}  
+Q-learning can be understood as a \emph{model-free stochastic approximation} to
+value iteration. Instead of requiring expectations with respect to the
+transition model, Q-learning uses sampled transitions $(s,a,r,s')$ collected by
+interacting with the environment:
+\[
+Q(s,a) \;\leftarrow\; Q(s,a) + \alpha \Big( r + \gamma \max_{a'} Q(s',a') - Q(s,a) \Big).
+\]
+This update mirrors the Bellman optimality operator but replaces the
+expectation with a single observed transition. As training proceeds, the
+estimates $Q(s,a)$ converge toward the optimal action-value function $Q^*(s,a)$
+under suitable conditions. Thus, Q-learning can be viewed as the
+model-free counterpart of value iteration, extending its principles to
+situations where the environment dynamics are unknown and must be learned
+purely from interaction.
+
+
+\section{Deep Q-Network (DQN)}
+
+A landmark in deep reinforcement learning is the Deep Q-Network (DQN) algorithm
+\cite{mnih2015human}, which combines Q-learning with deep neural networks.
+DQN approximates the optimal action-value function $Q^*(s,a)$ by a parameterized
+network $Q_\theta(s,a)$, trained to minimize the Bellman error. A key innovation
+was the use of two stabilizing techniques:
+
+\begin{itemize}
+    \item \textbf{Experience replay}: transitions $(s,a,r,s')$ are stored in a buffer
+    and sampled uniformly for updates, breaking correlations between sequential data.
+    \item \textbf{Target networks}: a separate set of parameters $\theta^{-}$ is held
+    fixed for computing Bellman targets, updated only periodically, reducing the risk
+    of divergence during training.
+\end{itemize}
+
+The learned Q-function induces a policy by greedy action selection,
+\[
+a(s) = \arg\max_a Q_\theta(s,a).
+\]
+
+Applied to the Atari 2600 benchmark from raw pixels, DQN demonstrated that a
+single agent architecture can learn to play many diverse games directly from
+high-dimensional sensory input, achieving performance comparable to or
+surpassing human experts on several titles. This result established DQN as a
+cornerstone of deep RL and catalyzed much of the subsequent progress in the
+field.
+
+
+% Preamble (once)
+% \usepackage{algorithm}
+% \usepackage{algpseudocode}
+% \usepackage{float}
+% \usepackage{amsmath}
+
+\begin{algorithm}[H]
+\caption{DQN with Replay, Periodic Batch Updates, and Target Network}
+\label{alg:dqn-periodic}
+\begin{algorithmic}[1]
+\State \textbf{Hyperparams:} replay capacity $N$, batch size $B$, discount $\gamma$, lr $\alpha$
+\State \hspace{2.6em} warm-up steps $N_{\text{warm}}$, update period $U$, updates-per-update $K$, target period $C$
+\State Initialize replay buffer $\mathcal{D}$ to capacity $N$
+\State Initialize Q-network $Q_\theta$ (random $\theta$); target network $Q_{\bar\theta}$ with $\bar\theta \gets \theta$
+\For{episode $=1,2,\dots$}
+  \State Initialize state $s$ (optionally preprocessed feature $\phi(s)$)
+  \While{episode not done}
+    \State Select $a$ by $\epsilon$-greedy w.r.t.\ $Q_\theta(s,\cdot)$
+    \State Execute $a$; observe $(r, s', d)$ where $d=1$ iff terminal
+    \State Push $(s,a,r,s',d)$ into $\mathcal{D}$; set $s \gets s'$
+    \State \textbf{(Periodic learning)} \If{$|\mathcal{D}|\ge B$ \textbf{and} $t \ge N_{\text{warm}}$ \textbf{and} $t \bmod U = 0$}
+      \For{$k=1$ to $K$} \Comment{$K$ SGD steps per update (UTD)}
+        \State Sample minibatch $\{(s_i,a_i,r_i,s'_i,d_i)\}_{i=1}^B \sim \mathcal{D}$
+        \State Targets (MSE/Huber loss):
+        \[
+          y_i \;=\; r_i + \gamma(1-d_i)\,\max_{a'} Q_{\bar\theta}(s'_i,a') 
+          \quad\text{\footnotesize (Double DQN: }Q_{\bar\theta}(s'_i,\arg\max_{a'}Q_\theta(s'_i,a'))\text{)}
+        \]
+        \State $L(\theta)=\tfrac{1}{B}\sum_{i=1}^B \ell\!\big(y_i - Q_\theta(s_i,a_i)\big)$; 
+               \quad $\theta \leftarrow \theta - \alpha \nabla_\theta L(\theta)$
+      \EndFor
+    \EndIf
+    \State \textbf{(Target sync)} \If{$t \bmod C = 0$} \quad $\bar\theta \leftarrow \theta$ \EndIf
+    \State Increment global step $t \leftarrow t+1$
+  \EndWhile
+\EndFor
+\end{algorithmic}
+\end{algorithm}

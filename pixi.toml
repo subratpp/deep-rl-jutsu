@@ -1,0 +1,33 @@
+[workspace]
+name = "drl-jutsu"
+description = "Deep RL algorithms implemented from scratch as notebook tutorials"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
+
+[dependencies]
+python = "3.11.*"
+numpy = ">=2.0"
+pytorch = ">=2.5"
+matplotlib = "*"
+tqdm = "*"
+# Gymnasium + extras: classic control (CartPole, Pendulum) and Box2D (LunarLander, BipedalWalker)
+gymnasium = ">=1.0"
+pygame = "*"
+box2d-py = "*"
+# Notebooks
+jupyterlab = "*"
+ipykernel = "*"
+ipywidgets = "*"
+
+[tasks]
+lab = { cmd = "jupyter lab", description = "Launch JupyterLab to run the notebooks" }
+book = { cmd = "latexmk", cwd = "book", description = "Compile the book to rl_book.pdf (needs a TeX distribution)" }
+book-watch = { cmd = "latexmk -pvc", cwd = "book", description = "Recompile the book on every save" }
+check = { cmd = "python -c \"import torch, gymnasium as gym; env = gym.make('CartPole-v1'); print('torch', torch.__version__, '| gymnasium', gym.__version__, '| OK')\"", description = "Sanity-check the install" }
+
+# Optional: Atari games (`pixi run -e atari lab`)
+[feature.atari.pypi-dependencies]
+ale-py = ">=0.9"
+
+[environments]
+atari = ["atari"]

@@ -1,0 +1,41 @@
+\documentclass[11pt, twoside, openright]{book}
+\usepackage{jutsu}
+
+\renewcommand{\booktitle}{Deep Reinforcement Learning}
+\renewcommand{\booksubtitle}{From Zero to Hero}
+\renewcommand{\bookauthor}{Subrat Prasad Panda}
+\renewcommand{\bookaffiliation}{NTU Singapore}
+
+\hypersetup{pdftitle={Deep Reinforcement Learning: From Zero to Hero},
+            pdfauthor={Subrat Prasad Panda}}
+
+% To compile only the chapter you are working on (much faster), uncomment:
+% \includeonly{chapters/01-preliminaries}
+
+\begin{document}
+
+\frontmatter
+\makebooktitle
+
+\include{chapters/00-abstract}
+
+\pdfbookmark{\contentsname}{toc}
+\tableofcontents
+
+\mainmatter
+
+\include{chapters/01-preliminaries}
+% \include{chapters/02-introduction}
+% \include{chapters/03-value-based}
+\include{chapters/04-policy-gradient}
+% \include{chapters/05-rl-finetuning}
+
+\backmatter
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{\bibname}
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+
+\end{document}

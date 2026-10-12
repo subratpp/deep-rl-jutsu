@@ -1,0 +1,37 @@
+# pixi environments
+.pixi/
+
+# Jupyter
+.ipynb_checkpoints/
+__pycache__/
+
+# LaTeX build artifacts (the book's PDF, rl_book.pdf, is committed)
+book/build/
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.synctex(busy)
+*.dvi
+*.xdv
+*.ps
+*.lof
+*.lot
+*.loa
+*.lol
+*.bcf
+*.run.xml
+*.nav
+*.snm
+*.vrb
+*.idx
+*.ilg
+*.ind
+
+# Editors / OS
+.DS_Store
